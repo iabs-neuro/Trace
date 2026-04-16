@@ -45,17 +45,29 @@ for trial = 1:nTrials
         fprintf('WARNING: trial %d baseline is too short (%d frames)\n', trial, sum(baselineMask));
     end
 
-    % -------- US mask --------
+    % -------- US mask (trial-specific) --------
     USMask = false(nFrames,1);
     if strcmpi(DayID, '1D')
+        trialStart = soundFrames(1);
+        if ~isempty(traceFrames)
+            trialEnd = min(nFrames, traceFrames(end) + round(Opts.USWindowSec * fps));
+        else
+            trialEnd = min(nFrames, soundFrames(end) + round(Opts.USWindowSec * fps));
+        end
+
+        trialRegion = false(nFrames,1);
+        trialRegion(trialStart:trialEnd) = true;
+
         switch GroupType
             case 'delay'
                 if hasSoundShock
-                    USMask = BuildUSMaskFromOnset(FeatureData(:, soundShockIdx), fps, Opts.USWindowSec);
+                    usSource = logical(FeatureData(:, soundShockIdx)) & trialRegion;
+                    USMask = BuildUSMaskFromOnset(usSource, fps, Opts.USWindowSec);
                 end
             case {'trace','distractor'}
                 if hasShock
-                    USMask = BuildUSMaskFromOnset(FeatureData(:, shockIdx), fps, Opts.USWindowSec);
+                    usSource = logical(FeatureData(:, shockIdx)) & trialRegion;
+                    USMask = BuildUSMaskFromOnset(usSource, fps, Opts.USWindowSec);
                 end
         end
     end

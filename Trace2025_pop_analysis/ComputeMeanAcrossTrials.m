@@ -6,7 +6,9 @@ CSresp = false(1,nCells);
 TRresp = false(1,nCells);
 USresp = false(1,nCells);
 
-% concatenate windows across trials, then average by trial-wise pooling
+% session-level responsiveness from trial-averaged activity:
+% for each trial, compute mean activity in baseline/response windows,
+% then apply the same statistics across trials.
 for c = 1:nCells
     baseAll = [];
     csAll = [];
@@ -14,11 +16,25 @@ for c = 1:nCells
     usAll = [];
 
     for t = validTrials
-        baseAll = [baseAll; TraceNorm(TrialRes(t).BaselineMask, c)];
-        csAll   = [csAll;   TraceNorm(TrialRes(t).SoundMask, c)];
-        trAll   = [trAll;   TraceNorm(TrialRes(t).TraceMask, c)];
+        baseVals = TraceNorm(TrialRes(t).BaselineMask, c);
+        csVals   = TraceNorm(TrialRes(t).SoundMask, c);
+        trVals   = TraceNorm(TrialRes(t).TraceMask, c);
+
+        if ~isempty(baseVals)
+            baseAll = [baseAll; mean(baseVals, 'omitnan')];
+        end
+        if ~isempty(csVals)
+            csAll = [csAll; mean(csVals, 'omitnan')];
+        end
+        if ~isempty(trVals)
+            trAll = [trAll; mean(trVals, 'omitnan')];
+        end
+
         if any(TrialRes(t).USMask)
-            usAll = [usAll; TraceNorm(TrialRes(t).USMask, c)];
+            usVals = TraceNorm(TrialRes(t).USMask, c);
+            if ~isempty(usVals)
+                usAll = [usAll; mean(usVals, 'omitnan')];
+            end
         end
     end
 
