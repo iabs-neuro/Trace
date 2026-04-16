@@ -23,6 +23,8 @@ Opts.USWindowSec = 6;
 Opts.DistrPostSec = 3;          % remove 3 s after distractor from baseline
 Opts.DistrBaselineChunkSec = 10; % first two clean 10 s baseline pieces
 Opts.MinTrialsResponsive = 3;   % user-defined N out of 7
+Opts.MakePlots = true;
+Opts.PlotPadSec = 10;
 
 % session-level mode 1 = minimum N trials
 % session-level mode 2 = mean across trials
@@ -171,6 +173,10 @@ for iFile = 1:numel(featureFiles)
 
     save(fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']), 'SessionRes');
     fprintf('Saved %s\n', fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']));
+
+    if Opts.MakePlots
+        RunPopulationVisualization(SessionRes, TraceNorm, FeatureData, FeatureNames, fpsUsed, Paths.Out, Opts);
+    end
 end
 
 save(fullfile(Paths.Out, 'AllSessions_PopAnalysis.mat'), 'Results', 'Opts', 'MouseGroups');
