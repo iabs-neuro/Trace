@@ -35,11 +35,13 @@ MouseGroups.Distractor = {'J06','J12','J14','J17','J25','J54','J55','J59','J61'}
 %% ================== FILE LIST ==================
 featureFiles = dir(fullfile(Paths.Features, 'Trace_*_*D_features.csv'));
 fprintf('Found %d feature files\n', numel(featureFiles));
+if isempty(featureFiles)
+    error('No feature files found in %s', Paths.Features);
+end
 
 Results = struct();
 
-% for iFile = 1:numel(featureFiles)
-    for iFile = 1
+for iFile = 1:numel(featureFiles)
     featureName = featureFiles(iFile).name;
     featurePath = fullfile(Paths.Features, featureName);
 
@@ -80,9 +82,18 @@ Results = struct();
     end
     Ttr = readtable(tracePath);
 
-    % assume all columns except first are neurons
-    % if first column is not time anymore, this is what we want
-    TraceRaw = Ttr{:,1:end};
+    % choose trace columns (drop obvious meta/time columns when present)
+    trNames = Ttr.Properties.VariableNames;
+    isNumericCol = varfun(@isnumeric, Ttr, 'OutputFormat', 'uniform');
+    isMetaCol = startsWith(lower(trNames), {'time','timestamp','frame','index'});
+    keepCols = isNumericCol & ~isMetaCol;
+
+    if ~any(keepCols)
+        % fallback for unknown naming conventions: keep all numeric columns
+        keepCols = isNumericCol;
+    end
+
+    TraceRaw = Ttr{:, keepCols};
 
     %% -------- load timestamps --------
     tsPath = fullfile(Paths.TimeStamps, [SessionID '_timestamp.csv']);

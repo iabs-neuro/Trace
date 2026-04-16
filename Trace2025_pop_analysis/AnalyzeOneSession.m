@@ -112,7 +112,12 @@ for trial = 1:nTrials
 end
 
 % -------- session-level populations --------
-validTrials = find(~arrayfun(@isempty, {TrialRes.Trial}));
+validTrials = [];
+for t = 1:numel(TrialRes)
+    if isfield(TrialRes(t), 'Trial') && ~isempty(TrialRes(t).Trial)
+        validTrials(end+1) = t; %#ok<AGROW>
+    end
+end
 if isempty(validTrials)
     SessionRes = struct();
     return;

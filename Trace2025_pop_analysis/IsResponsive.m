@@ -14,8 +14,8 @@ if median(respVals) <= median(baseVals)
     return;
 end
 
-% Mann-Whitney
-pU = ranksum(baseVals, respVals, 'tail', 'right');
+% Mann-Whitney: response should be greater than baseline
+pU = ranksum(respVals, baseVals, 'tail', 'right');
 if pU >= Opts.p_value
     tf = false;
     return;
