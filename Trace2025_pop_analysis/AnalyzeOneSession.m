@@ -15,6 +15,23 @@ hasShock = ~isempty(shockIdx) && any(FeatureData(:, shockIdx) > 0);
 hasSoundShock = ~isempty(soundShockIdx) && any(FeatureData(:, soundShockIdx) > 0);
 hasDistractor = ~isempty(distractorIdx) && any(FeatureData(:, distractorIdx) > 0);
 
+USSource2sAll = false(nFrames,1);
+USSourceName = '';
+switch lower(GroupType)
+    case 'delay'
+        if hasSoundShock
+            USSource2sAll = logical(FeatureData(:, soundShockIdx));
+            USSourceName = 'sound_shock';
+        end
+    case {'trace','distractor'}
+        if hasShock
+            USSource2sAll = logical(FeatureData(:, shockIdx));
+            USSourceName = 'shock';
+        end
+end
+
+USMaskAll6s = BuildUSMaskFromOnset(USSource2sAll, fps, Opts.USWindowSec);
+
 for trial = 1:nTrials
     soundName = sprintf('sound%d', trial);
     traceName = sprintf('trace%d', trial);
@@ -46,6 +63,7 @@ for trial = 1:nTrials
     end
 
     % -------- US mask (trial-specific) --------
+    USMask2s = false(nFrames,1);
     USMask = false(nFrames,1);
     if strcmpi(DayID, '1D')
         trialStart = soundFrames(1);
@@ -61,13 +79,13 @@ for trial = 1:nTrials
         switch GroupType
             case 'delay'
                 if hasSoundShock
-                    usSource = logical(FeatureData(:, soundShockIdx)) & trialRegion;
-                    USMask = BuildUSMaskFromOnset(usSource, fps, Opts.USWindowSec);
+                    USMask2s = logical(FeatureData(:, soundShockIdx)) & trialRegion;
+                    USMask = BuildUSMaskFromOnset(USMask2s, fps, Opts.USWindowSec);
                 end
             case {'trace','distractor'}
                 if hasShock
-                    usSource = logical(FeatureData(:, shockIdx)) & trialRegion;
-                    USMask = BuildUSMaskFromOnset(usSource, fps, Opts.USWindowSec);
+                    USMask2s = logical(FeatureData(:, shockIdx)) & trialRegion;
+                    USMask = BuildUSMaskFromOnset(USMask2s, fps, Opts.USWindowSec);
                 end
         end
     end
@@ -120,6 +138,7 @@ for trial = 1:nTrials
     TrialRes(trial).BaselineMask = baselineMask;
     TrialRes(trial).SoundMask = soundMask;
     TrialRes(trial).TraceMask = traceMask;
+    TrialRes(trial).USMask2s = USMask2s;
     TrialRes(trial).USMask = USMask;
 end
 
@@ -148,6 +167,9 @@ SessionRes.nCells = nCells;
 SessionRes.nTrialsAnalyzed = numel(validTrials);
 SessionRes.fps = fps;
 SessionRes.FeatureNames = FeatureNames;
+SessionRes.USDefinition.SourceColumn = USSourceName;
+SessionRes.USDefinition.SourceMask2s_AllTrials = USSource2sAll;
+SessionRes.USDefinition.ExpandedMask6s_AllTrials = USMaskAll6s;
 
 % ---- Mode 1: minimum N trials ----
 N = Opts.MinTrialsResponsive;

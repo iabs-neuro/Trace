@@ -87,6 +87,7 @@ for t = 1:numel(SessionRes.TrialRes)
             end
             hold off;
         end
+        addMaskShading(gca, timeRelSec, targetMask, [0.2 0.6 1.0], 0.12);
         xline(0, '--b', 'CS on');
         title(sprintf('%s | trial %d | %s | stacked (sorted by peak in target interval)', ...
             SessionRes.SessionID, t, pop), 'Interpreter', 'none');
@@ -104,6 +105,7 @@ for t = 1:numel(SessionRes.TrialRes)
             axis off;
         end
         hold on;
+        addMaskShading(gca, timeRelSec, targetMask, [0.2 0.6 1.0], 0.12);
         xline(0, '--b', 'CS on');
         hold off;
         xlabel('Time from CS onset (s)');
@@ -191,6 +193,7 @@ for p = 1:numel(popNames)
         end
         hold off;
     end
+    addMaskShading(gca, tSec, targetMask, [0.2 0.6 1.0], 0.10);
     title(sprintf('%s | session-level MeanAcrossTrials | %s | stacked', SessionRes.SessionID, pop), 'Interpreter', 'none');
     ylabel('Neuron index (offset)');
     grid on;
@@ -205,6 +208,7 @@ for p = 1:numel(popNames)
         text(0.5, 0.5, 'No neurons in this population', 'HorizontalAlignment', 'center');
         axis off;
     end
+    addMaskShading(gca, tSec, targetMask, [0.2 0.6 1.0], 0.10);
     xlabel('Session time (s)');
     title('Heatmap');
 
@@ -369,4 +373,29 @@ for i = 1:numel(modeNames)
 end
 
 T = cell2table(rows, 'VariableNames', {'Mode','Population','Count','Percent','TotalNeurons'});
+end
+
+function addMaskShading(ax, tVec, mask, rgb, alphaVal)
+if isempty(mask) || ~any(mask)
+    return;
+end
+
+axes(ax); %#ok<LAXES>
+yl = ylim(ax);
+hold(ax, 'on');
+
+mask = logical(mask(:));
+tVec = tVec(:);
+onsets = find(diff([0; mask]) == 1);
+offsets = find(diff([mask; 0]) == -1);
+
+for i = 1:numel(onsets)
+    x0 = tVec(onsets(i));
+    x1 = tVec(offsets(i));
+    patch(ax, [x0 x1 x1 x0], [yl(1) yl(1) yl(2) yl(2)], rgb, ...
+        'FaceAlpha', alphaVal, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+    xline(ax, x0, '--', 'Color', rgb*0.7, 'HandleVisibility', 'off');
+    xline(ax, x1, '--', 'Color', rgb*0.7, 'HandleVisibility', 'off');
+end
+uistack(findobj(ax,'Type','Line'), 'top');
 end

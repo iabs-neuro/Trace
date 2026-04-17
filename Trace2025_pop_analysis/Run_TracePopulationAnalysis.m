@@ -180,4 +180,7 @@ for iFile = 1:numel(featureFiles)
 end
 
 save(fullfile(Paths.Out, 'AllSessions_PopAnalysis.mat'), 'Results', 'Opts', 'MouseGroups');
+if Opts.MakePlots
+    BuildGroupLevelSummary(Results, Paths.Out);
+end
 disp('Done.');
