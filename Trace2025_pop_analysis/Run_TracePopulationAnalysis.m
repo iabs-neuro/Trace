@@ -23,6 +23,8 @@ Opts.USWindowSec = 6;
 Opts.DistrPostSec = 3;          % remove 3 s after distractor from baseline
 Opts.DistrBaselineChunkSec = 10; % first two clean 10 s baseline pieces
 Opts.MinTrialsResponsive = 3;   % user-defined N out of 7
+Opts.MakePlots = true;
+Opts.PlotPadSec = 10;
 
 % session-level mode 1 = minimum N trials
 % session-level mode 2 = mean across trials
@@ -35,11 +37,13 @@ MouseGroups.Distractor = {'J06','J12','J14','J17','J25','J54','J55','J59','J61'}
 %% ================== FILE LIST ==================
 featureFiles = dir(fullfile(Paths.Features, 'Trace_*_*D_features.csv'));
 fprintf('Found %d feature files\n', numel(featureFiles));
+if isempty(featureFiles)
+    error('No feature files found in %s', Paths.Features);
+end
 
 Results = struct();
 
-% for iFile = 1:numel(featureFiles)
-    for iFile = 1
+for iFile = 1:numel(featureFiles)
     featureName = featureFiles(iFile).name;
     featurePath = fullfile(Paths.Features, featureName);
 
@@ -80,9 +84,18 @@ Results = struct();
     end
     Ttr = readtable(tracePath);
 
-    % assume all columns except first are neurons
-    % if first column is not time anymore, this is what we want
-    TraceRaw = Ttr{:,1:end};
+    % choose trace columns (drop obvious meta/time columns when present)
+    trNames = Ttr.Properties.VariableNames;
+    isNumericCol = varfun(@isnumeric, Ttr, 'OutputFormat', 'uniform');
+    isMetaCol = startsWith(lower(trNames), {'time','timestamp','frame','index'});
+    keepCols = isNumericCol & ~isMetaCol;
+
+    if ~any(keepCols)
+        % fallback for unknown naming conventions: keep all numeric columns
+        keepCols = isNumericCol;
+    end
+
+    TraceRaw = Ttr{:, keepCols};
 
     %% -------- load timestamps --------
     tsPath = fullfile(Paths.TimeStamps, [SessionID '_timestamp.csv']);
@@ -160,7 +173,14 @@ Results = struct();
 
     save(fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']), 'SessionRes');
     fprintf('Saved %s\n', fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']));
+
+    if Opts.MakePlots
+        RunPopulationVisualization(SessionRes, TraceNorm, FeatureData, FeatureNames, fpsUsed, Paths.Out, Opts);
+    end
 end
 
 save(fullfile(Paths.Out, 'AllSessions_PopAnalysis.mat'), 'Results', 'Opts', 'MouseGroups');
+if Opts.MakePlots
+    BuildGroupLevelSummary(Results, Paths.Out);
+end
 disp('Done.');
