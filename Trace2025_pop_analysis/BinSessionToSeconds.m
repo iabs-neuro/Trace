@@ -26,7 +26,8 @@ for b = 1:nBins
     end
 
     TraceB(b,:) = mean(TraceRaw(idx,:), 1, 'omitnan');
-    FeatureB(b,:) = any(FeatArr(idx,:) > 0, 1);
+    % Majority rule for binary features (reduces 2s->3bin inflation from single-frame spillover)
+    FeatureB(b,:) = mean(FeatArr(idx,:) > 0, 1, 'omitnan') >= 0.5;
 end
 
 fpsOut = 1 / binSec;

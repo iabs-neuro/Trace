@@ -42,6 +42,7 @@ if isempty(featureFiles)
 end
 
 Results = struct();
+SessionCache = struct([]);
 
 for iFile = 1:numel(featureFiles)
     featureName = featureFiles(iFile).name;
@@ -170,6 +171,12 @@ for iFile = 1:numel(featureFiles)
     SessionRes.FPS_used = fpsUsed;
 
     Results.(matlab.lang.makeValidName(SessionID)) = SessionRes;
+    iS = numel(SessionCache) + 1;
+    SessionCache(iS).SessionRes = SessionRes;
+    SessionCache(iS).TraceNorm = TraceNorm;
+    SessionCache(iS).FeatureData = FeatureData;
+    SessionCache(iS).FeatureNames = FeatureNames;
+    SessionCache(iS).fps = fpsUsed;
 
     save(fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']), 'SessionRes');
     fprintf('Saved %s\n', fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']));
@@ -181,6 +188,6 @@ end
 
 save(fullfile(Paths.Out, 'AllSessions_PopAnalysis.mat'), 'Results', 'Opts', 'MouseGroups');
 if Opts.MakePlots
-    BuildGroupLevelSummary(Results, Paths.Out);
+    BuildGroupLevelSummary(Results, SessionCache, Paths.Out, Opts);
 end
 disp('Done.');
