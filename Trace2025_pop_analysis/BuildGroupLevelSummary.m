@@ -78,7 +78,17 @@ for ig = 1:numel(groupOrder)
                     text(0.5,0.5,[popHeat{p} ' (n=0)'],'HorizontalAlignment','center'); axis off; continue;
                 end
                 Xn = normalizeRows01(X);
-                [Xn,~] = sortByPeak(Xn, relAxis >= 0);
+                switch popHeat{p}
+                    case 'CSOnly'
+                        targetMask = relAxis >= 0 & relAxis <= 20;
+                    case 'TraceOnly'
+                        targetMask = relAxis >= 22 & relAxis <= 40;
+                    case 'CSTrace'
+                        targetMask = relAxis >= 0 & relAxis <= 40;
+                    otherwise
+                        targetMask = relAxis >= 0;
+                end
+                [Xn,~] = sortByPeak(Xn, targetMask);
                 imagesc(relAxis, 1:size(Xn,1), Xn);
                 colormap(gca, getHeatmapColormap());
                 hold on;
@@ -87,10 +97,10 @@ for ig = 1:numel(groupOrder)
                 hold off;
                 xline(0,'--k'); xline(20,'--k'); xline(40,'--k');
                 ylabel(sprintf('%s (n=%d)', popHeat{p}, size(Xn,1)));
-                set(gca,'FontSize',12,'LineWidth',1.2);
+                set(gca,'FontSize',24,'LineWidth',1.4);
             end
-            xlabel('Time from CS onset (s)');
-            sgtitle(sprintf('Group=%s | Day=%s | Mode=%s', grp, day, mode), 'Interpreter','none', 'FontSize',14, 'FontWeight','bold');
+            xlabel('Time from CS onset (s)', 'FontSize', 28);
+            sgtitle(sprintf('Group=%s | Day=%s | Mode=%s', grp, day, mode), 'Interpreter','none', 'FontSize',28, 'FontWeight','bold');
 
             saveas(f, fullfile(groupDir, sprintf('Heatmap_Group_%s_Day_%s_Mode_%s.fig', grp, day, mode)));
             saveas(f, fullfile(groupDir, sprintf('Heatmap_Group_%s_Day_%s_Mode_%s.png', grp, day, mode)));
@@ -156,23 +166,44 @@ for i = 1:numel(SessionCache)
     end
     idxCells = find(S.SessionLevel.(mode).(popName));
     if isempty(idxCells), continue; end
-    Xm = extractAlignedNeurons(SessionCache(i), idxCells, relAxis);
+    Xm = extractAlignedNeurons(SessionCache(i), idxCells, relAxis, 'CS');
     X = [X; Xm]; %#ok<AGROW>
 end
 end
 
-function Xm = extractAlignedNeurons(C, idxCells, relAxis)
+function Xm = extractAlignedNeurons(C, idxCells, relAxis, alignMode)
 Xm = [];
 Tr = C.TraceNorm;
 fps = C.fps;
+if nargin < 4
+    alignMode = 'CS';
+end
 
 traces = [];
 for t = 1:numel(C.SessionRes.TrialRes)
     if ~isfield(C.SessionRes.TrialRes(t),'Trial') || isempty(C.SessionRes.TrialRes(t).Trial), continue; end
-    snd = find(C.SessionRes.TrialRes(t).SoundMask);
+    tr = C.SessionRes.TrialRes(t);
+    snd = find(tr.SoundMask);
     if isempty(snd), continue; end
-    csOn = snd(1);
-    idx = round(csOn + relAxis * fps);
+
+    switch upper(alignMode)
+        case 'US'
+            us = [];
+            if isfield(tr, 'USMask2s')
+                us = find(tr.USMask2s);
+            end
+            if isempty(us)
+                us = find(tr.USMask);
+            end
+            if isempty(us)
+                continue;
+            end
+            t0 = us(1);
+        otherwise
+            t0 = snd(1);
+    end
+
+    idx = round(t0 + relAxis * fps);
     idx(idx < 1 | idx > size(Tr,1)) = NaN;
     tmp = nan(numel(relAxis), numel(idxCells));
     ok = ~isnan(idx);
@@ -230,28 +261,41 @@ for ci = 1:numel(curves)
             if ~strcmpi(S.DayID, Cfg.day), continue; end
             idxCells = find(S.SessionLevel.MeanAcrossTrials.(pop));
             if isempty(idxCells), continue; end
-            Xm = extractAlignedNeurons(SessionCache(i), idxCells, relAxis);
+            if Cfg.alignUS
+                Xm = extractAlignedNeurons(SessionCache(i), idxCells, relAxis, 'US');
+            else
+                Xm = extractAlignedNeurons(SessionCache(i), idxCells, relAxis, 'CS');
+            end
             X = [X; Xm]; %#ok<AGROW>
         end
         if isempty(X), continue; end
         mu = mean(X,1,'omitnan')';
         sem = std(X,0,1,'omitnan')' ./ max(1,sqrt(size(X,1)));
         cc = colors(min(p,size(colors,1)),:);
-        fill([relAxis; flipud(relAxis)], [mu-sem; flipud(mu+sem)], cc, 'FaceAlpha',0.20, 'EdgeColor','none');
+        fill([relAxis; flipud(relAxis)], [mu-sem; flipud(mu+sem)], cc, ...
+            'FaceAlpha',0.20, 'EdgeColor','none', 'HandleVisibility','off');
         plot(relAxis, mu, 'LineWidth', 2.8, 'Color', cc, 'DisplayName', pop);
         for k = 1:numel(relAxis)
             rows(end+1,:) = {Cfg.name, pop, relAxis(k), mu(k), sem(k), size(X,1)}; %#ok<AGROW>
         end
     end
-    xline(0,'--k','CS on');
-    xline(20,'--k','sound off');
-    xline(40,'--k','trace off');
-    xlabel('Time from CS onset (s)','FontSize',16);
-    ylabel('dF/F (a.u.)','FontSize',16);
-    set(gca,'FontSize',14,'LineWidth',1.4);
+    if Cfg.alignUS
+        xline(0,'--r','US on');
+    else
+        xline(0,'--k','CS on');
+        xline(20,'--k','sound off');
+        xline(40,'--k','trace off');
+    end
+    if Cfg.alignUS
+        xlabel('Time from US onset (s)','FontSize',32);
+    else
+        xlabel('Time from CS onset (s)','FontSize',32);
+    end
+    ylabel('dF/F (a.u.)','FontSize',32);
+    set(gca,'FontSize',28,'LineWidth',1.6);
     grid on;
-    legend('Location','best','FontSize',13);
-    title(strrep(Cfg.name,'_',' '),'FontSize',18,'FontWeight','bold');
+    legend('Location','best','FontSize',24);
+    title(strrep(Cfg.name,'_',' '),'FontSize',32,'FontWeight','bold');
     saveas(f, fullfile(outDir, [Cfg.name '_paper_ready.fig']));
     saveas(f, fullfile(outDir, [Cfg.name '_paper_ready.png']));
     close(f);
