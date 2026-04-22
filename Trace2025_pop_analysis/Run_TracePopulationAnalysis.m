@@ -23,6 +23,9 @@ Opts.USWindowSec = 6;
 Opts.DistrPostSec = 3;          % remove 3 s after distractor from baseline
 Opts.DistrBaselineChunkSec = 10; % first two clean 10 s baseline pieces
 Opts.MinTrialsResponsive = 3;   % user-defined N out of 7
+Opts.MakePlots = true;
+Opts.PlotPadSec = 10;
+Opts.ReuseExistingSessionMat = true;
 
 % session-level mode 1 = minimum N trials
 % session-level mode 2 = mean across trials
@@ -35,11 +38,14 @@ MouseGroups.Distractor = {'J06','J12','J14','J17','J25','J54','J55','J59','J61'}
 %% ================== FILE LIST ==================
 featureFiles = dir(fullfile(Paths.Features, 'Trace_*_*D_features.csv'));
 fprintf('Found %d feature files\n', numel(featureFiles));
+if isempty(featureFiles)
+    error('No feature files found in %s', Paths.Features);
+end
 
 Results = struct();
+SessionCache = struct([]);
 
-% for iFile = 1:numel(featureFiles)
-    for iFile = 1
+for iFile = 1:numel(featureFiles)
     featureName = featureFiles(iFile).name;
     featurePath = fullfile(Paths.Features, featureName);
 
@@ -55,6 +61,31 @@ Results = struct();
 
     fprintf('\n==============================\n');
     fprintf('Processing %s\n', SessionID);
+
+    outSessionMat = fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']);
+    outCacheMat = fullfile(Paths.Out, [SessionID '_PopCache.mat']);
+
+    if Opts.ReuseExistingSessionMat && isfile(outSessionMat)
+        L = load(outSessionMat, 'SessionRes');
+        if isfield(L, 'SessionRes') && ~isempty(L.SessionRes)
+            SessionRes = L.SessionRes;
+            Results.(matlab.lang.makeValidName(SessionID)) = SessionRes;
+            fprintf('Reuse existing analysis: %s\n', outSessionMat);
+
+            if isfile(outCacheMat)
+                C = load(outCacheMat, 'TraceNorm', 'FeatureData', 'FeatureNames', 'fpsUsed');
+                iS = numel(SessionCache) + 1;
+                SessionCache(iS).SessionRes = SessionRes;
+                SessionCache(iS).TraceNorm = C.TraceNorm;
+                SessionCache(iS).FeatureData = C.FeatureData;
+                SessionCache(iS).FeatureNames = C.FeatureNames;
+                SessionCache(iS).fps = C.fpsUsed;
+            else
+                fprintf('No cache mat for %s (group heatmaps may be skipped)\n', SessionID);
+            end
+            continue;
+        end
+    end
 
     % -------- determine group --------
     if ismember(MouseID, MouseGroups.Delay)
@@ -80,9 +111,18 @@ Results = struct();
     end
     Ttr = readtable(tracePath);
 
-    % assume all columns except first are neurons
-    % if first column is not time anymore, this is what we want
-    TraceRaw = Ttr{:,1:end};
+    % choose trace columns (drop obvious meta/time columns when present)
+    trNames = Ttr.Properties.VariableNames;
+    isNumericCol = varfun(@isnumeric, Ttr, 'OutputFormat', 'uniform');
+    isMetaCol = startsWith(lower(trNames), {'time','timestamp','frame','index'});
+    keepCols = isNumericCol & ~isMetaCol;
+
+    if ~any(keepCols)
+        % fallback for unknown naming conventions: keep all numeric columns
+        keepCols = isNumericCol;
+    end
+
+    TraceRaw = Ttr{:, keepCols};
 
     %% -------- load timestamps --------
     tsPath = fullfile(Paths.TimeStamps, [SessionID '_timestamp.csv']);
@@ -157,10 +197,24 @@ Results = struct();
     SessionRes.FPS_used = fpsUsed;
 
     Results.(matlab.lang.makeValidName(SessionID)) = SessionRes;
+    iS = numel(SessionCache) + 1;
+    SessionCache(iS).SessionRes = SessionRes;
+    SessionCache(iS).TraceNorm = TraceNorm;
+    SessionCache(iS).FeatureData = FeatureData;
+    SessionCache(iS).FeatureNames = FeatureNames;
+    SessionCache(iS).fps = fpsUsed;
 
-    save(fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']), 'SessionRes');
-    fprintf('Saved %s\n', fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']));
+    save(outSessionMat, 'SessionRes');
+    save(outCacheMat, 'TraceNorm', 'FeatureData', 'FeatureNames', 'fpsUsed', '-v7.3');
+    fprintf('Saved %s\n', outSessionMat);
+
+    if Opts.MakePlots
+        RunPopulationVisualization(SessionRes, TraceNorm, FeatureData, FeatureNames, fpsUsed, Paths.Out, Opts);
+    end
 end
 
 save(fullfile(Paths.Out, 'AllSessions_PopAnalysis.mat'), 'Results', 'Opts', 'MouseGroups');
+if Opts.MakePlots
+    BuildGroupLevelSummary(Results, SessionCache, Paths.Out, Opts);
+end
 disp('Done.');
