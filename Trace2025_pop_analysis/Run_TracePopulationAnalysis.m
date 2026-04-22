@@ -25,6 +25,7 @@ Opts.DistrBaselineChunkSec = 10; % first two clean 10 s baseline pieces
 Opts.MinTrialsResponsive = 3;   % user-defined N out of 7
 Opts.MakePlots = true;
 Opts.PlotPadSec = 10;
+Opts.ReuseExistingSessionMat = true;
 
 % session-level mode 1 = minimum N trials
 % session-level mode 2 = mean across trials
@@ -60,6 +61,31 @@ for iFile = 1:numel(featureFiles)
 
     fprintf('\n==============================\n');
     fprintf('Processing %s\n', SessionID);
+
+    outSessionMat = fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']);
+    outCacheMat = fullfile(Paths.Out, [SessionID '_PopCache.mat']);
+
+    if Opts.ReuseExistingSessionMat && isfile(outSessionMat)
+        L = load(outSessionMat, 'SessionRes');
+        if isfield(L, 'SessionRes') && ~isempty(L.SessionRes)
+            SessionRes = L.SessionRes;
+            Results.(matlab.lang.makeValidName(SessionID)) = SessionRes;
+            fprintf('Reuse existing analysis: %s\n', outSessionMat);
+
+            if isfile(outCacheMat)
+                C = load(outCacheMat, 'TraceNorm', 'FeatureData', 'FeatureNames', 'fpsUsed');
+                iS = numel(SessionCache) + 1;
+                SessionCache(iS).SessionRes = SessionRes;
+                SessionCache(iS).TraceNorm = C.TraceNorm;
+                SessionCache(iS).FeatureData = C.FeatureData;
+                SessionCache(iS).FeatureNames = C.FeatureNames;
+                SessionCache(iS).fps = C.fpsUsed;
+            else
+                fprintf('No cache mat for %s (group heatmaps may be skipped)\n', SessionID);
+            end
+            continue;
+        end
+    end
 
     % -------- determine group --------
     if ismember(MouseID, MouseGroups.Delay)
@@ -178,8 +204,9 @@ for iFile = 1:numel(featureFiles)
     SessionCache(iS).FeatureNames = FeatureNames;
     SessionCache(iS).fps = fpsUsed;
 
-    save(fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']), 'SessionRes');
-    fprintf('Saved %s\n', fullfile(Paths.Out, [SessionID '_PopAnalysis.mat']));
+    save(outSessionMat, 'SessionRes');
+    save(outCacheMat, 'TraceNorm', 'FeatureData', 'FeatureNames', 'fpsUsed', '-v7.3');
+    fprintf('Saved %s\n', outSessionMat);
 
     if Opts.MakePlots
         RunPopulationVisualization(SessionRes, TraceNorm, FeatureData, FeatureNames, fpsUsed, Paths.Out, Opts);

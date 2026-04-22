@@ -43,6 +43,11 @@ for m = 1:numel(modes)
     writetable(Tperc,  fullfile(groupDir, sprintf('Mouse_by_populations_%s_PERCENT.csv', mode)));
 end
 
+if nargin < 2 || isempty(SessionCache)
+    fprintf('BuildGroupLevelSummary: SessionCache is empty; trace-dependent heatmaps/curves are skipped.\n');
+    return;
+end
+
 % -------------------- 12 heatmaps: group x day x mode for CSOnly/TraceOnly/CSTrace --------------------
 popHeat = {'CSOnly','TraceOnly','CSTrace'};
 relAxis = (-30:1:50)';
@@ -75,7 +80,7 @@ for ig = 1:numel(groupOrder)
                 Xn = normalizeRows01(X);
                 [Xn,~] = sortByPeak(Xn, relAxis >= 0);
                 imagesc(relAxis, 1:size(Xn,1), Xn);
-                colormap(gca, turbo);
+                colormap(gca, getHeatmapColormap());
                 hold on;
                 patch([ -20 0 0 -20],[0 0 size(Xn,1)+1 size(Xn,1)+1], [0.85 0.90 1], 'FaceAlpha',0.12,'EdgeColor','none');
                 patch([0 20 20 0],[0 0 size(Xn,1)+1 size(Xn,1)+1], pastel(p,:), 'FaceAlpha',0.10,'EdgeColor','none');
@@ -255,5 +260,14 @@ for ci = 1:numel(curves)
         T = cell2table(rows, 'VariableNames', {'Curve','Population','TimeSec','Mean','SEM','N'});
         writetable(T, fullfile(outDir, [Cfg.name '_for_prism.csv']));
     end
+end
+
+function cmap = getHeatmapColormap()
+% 'turbo' is unavailable in older MATLAB releases.
+if exist('turbo', 'file') == 2
+    cmap = turbo;
+else
+    cmap = parula;
+end
 end
 end
